@@ -3,94 +3,783 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sensor Dash & PWA</title>
-    <link rel="manifest" href="manifest.json">
+    <title>Editor de video</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #00ff00; padding: 20px; }
-        .sensor-card { border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
-        .value { color: #fff; font-family: monospace; font-size: 1.2em; }
-        #installBtn { 
-            display: none; width: 100%; padding: 15px; background: #00ff00; 
-            color: #000; border: none; font-weight: bold; border-radius: 8px; margin-bottom: 20px;
+        body {
+            background: #111;
+            text-align: center;
+            margin: 0;
+            color: #666;
+            font-family: Sans-Serif;
         }
+        #canvas-container {
+            width: 100%;
+            height: auto;
+            background: #222;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            touch-action: none;
+        }
+        canvas {
+            background: #111;
+            border: solid 1px #666;
+        }
+        menu{
+            height:45px;
+            background: #222;
+            padding: 0px;
+            text-align: left;
+            margin-top: 2px;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        button{
+            height: 80%;
+            background: #333;
+            border: none;
+            color: #aaa;
+            width:50px;
+            font-size: 10px;
+        }
+        button:hover{
+            background: #e36;
+        }
+        #reloj{
+            color: #e36;
+            font-size: 35px;
+            padding: 3px;
+        }
+        #timeline{
+            position: relative;
+            display: block;
+            width: 100%;
+            background: #333;
+            height:auto;
+            
+            overflow-y: auto;
+        }
+         
+
+        #regla{
+            position: sticky;
+            height:25px;
+            background: #111;
+            width: 1500px;
+        }
+        .linea{
+            position: absolute;
+            height:10px ;
+            color: #888;
+            padding-left: 3px;
+            border-left: solid 1px #555;
+            font-size: 9px;
+        }
+       
+        .capa{
+            display:flex;
+            width: 1500px;
+            height: 40px;
+            border: solid 2px #222;
+            background: #333;
+            margin-top: 1px;
+            margin-bottom: 2px;
+            position: relative;
+            align-content: center;
+        }
+        .capa.selected{
+            border: solid 2px #e36;
+        }
+        .label.selected{
+            background-color: #e36;
+        }
+        .capax:hover{ border: solid 2px #e36;}
+
+        .label{
+            position: sticky;
+            left: 0px;
+            width: 84px;
+            height: 100%;
+            background: #222;
+            color: #666;
+            align-content: center;
+            font-size: 13px;
+            z-index: 100;
+        }
+        
+        #playhead { position: absolute; top: 0; left: 85px; width: 2px; height: 100%; background: red; z-index: 110; pointer-events: none; }
+        #playhead::after { content: ""; position: absolute; top: 0; left: -5px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 10px solid red; }
+        
+        .clip { position: absolute; height: 35px; background: #333; border-radius: 3px; display: flex; align-items: center; font-size: 9px; cursor: move; border: 1px solid #eee; z-index: 10; overflow: hidden; 
+            text-align: left;
+            top: 2px;
+        }
+        .clip.selected-clip { border: 2px solid #e36; }
+        .clip-info { padding: 0 5px; white-space: nowrap; }
+
+        /* Tirador de redimensión */
+        .resizer { position: absolute; right: 0; top: 0; width: 10px; height: 100%; background: #eee; }
+        input[type="range"] { height:2px;width: 70px; accent-color:#333}
     </style>
 </head>
 <body>
+<div id="canvas-container">
+    <canvas id="mainCanvas" width="350" height="300"></canvas>
+    <div id="estado">Seleccione un archivo</div>
+    <div id="reloj" onclick="full()">00:00:00.00</div>
+</div>
+<menu>
+<button class="btn-load" onclick="document.getElementById('nuevo').click()">LOAD</button>
+<button id="playbtn"onclick="play(this)">PLAY</button>
+<button id="stopbtn"onclick="stop()">STOP</button>
+<button onclick="rec()">REC</button>
+<button onclick="batch()">BATCH</button>
+<button onclick="playsel()">Play I</button>
+<button onclick="pausesel()">Pause I</button>
+<button onclick="stopsel()">Stop I</button>
 
-    <button id="installBtn">INSTALAR APP (PWA)</button>
+</menu>
+<menu>
+<button class="btn-mode" id="btnMover" onclick="setMode('move')">MOVER</button>
+            <button class="btn-mode" id="btnEscalar" onclick="setMode('rotate')">ROTAR</button>
+        <span>rot:</span>
+        <input type="range" min="0" max="360" value="0" oninput="updateProp('rot', this.value)">
+        <span>op:</span>
+        <input type="range" min="0" max="100" value="100" oninput="updateProp('alpha', this.value/100)">
+    
+        <span>vol:</span>
+        <input type="range" id="volRange" min="0" max="100" value="100" oninput="updateProp('vol', this.value/100)">
+</menu> 
 
-    <h2>Monitor de Sensores</h2>
 
-    <div class="sensor-card">
-        <h3>Acelerómetro</h3>
-        <p>X: <span id="acc-x" class="value">0</span></p>
-        <p>Y: <span id="acc-y" class="value">0</span></p>
-        <p>Z: <span id="acc-z" class="value">0</span></p>
-    </div>
-
-    <div class="sensor-card">
-        <h3>Giroscopio (Orientación)</h3>
-        <p>Alpha (Z): <span id="gyro-a" class="value">0</span></p>
-        <p>Beta (X): <span id="gyro-b" class="value">0</span></p>
-        <p>Gamma (Y): <span id="gyro-g" class="value">0</span></p>
-    </div>
-
-    <div class="sensor-card">
-        <h3>Luz Ambiental</h3>
-        <p>Lux: <span id="light-val" class="value">N/A</span></p>
-    </div>
-
-    <script>
-        // 1. LÓGICA DE SENSORES
-        if ('Accelerometer' in window) {
-            try {
-                const acc = new Accelerometer({frequency: 60});
-                acc.addEventListener('reading', () => {
-                    document.getElementById('acc-x').innerText = acc.x.toFixed(2);
-                    document.getElementById('acc-y').innerText = acc.y.toFixed(2);
-                    document.getElementById('acc-z').innerText = acc.z.toFixed(2);
-                });
-                acc.start();
-            } catch (err) { console.log("Acelerómetro no disponible"); }
-        }
-
-        window.addEventListener('deviceorientation', (event) => {
-            document.getElementById('gyro-a').innerText = event.alpha ? event.alpha.toFixed(2) : 0;
-            document.getElementById('gyro-b').innerText = event.beta ? event.beta.toFixed(2) : 0;
-            document.getElementById('gyro-g').innerText = event.gamma ? event.gamma.toFixed(2) : 0;
-        });
-
-        if ('AmbientLightSensor' in window) {
-            const sensor = new AmbientLightSensor();
-            sensor.addEventListener('reading', () => {
-                document.getElementById('light-val').innerText = sensor.illuminance;
-            });
-            sensor.start();
-        }
-
-        // 2. LÓGICA DE INSTALACIÓN PWA
-        let deferredPrompt;
-        const installBtn = document.getElementById('installBtn');
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            installBtn.style.display = 'block'; // Mostrar botón si es instalable
-        });
-
-        installBtn.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') installBtn.style.display = 'none';
-                deferredPrompt = null;
-            }
-        });
-
-        // Registrar Service Worker (necesario para PWA)
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
-        }
-    </script>
+<div id="timeline">
+<div id="regla"></div>
+<div id="playhead"></div>
+<div class="capa" id="capai1"><div class="label"onclick="selectTrack(this)">Capa I1</div>
+</div>
+<div class="capa" id="capav1" ><div class="label"onclick="selectTrack(this)">Capa V1</div>
+</div>
+<div class="capa"id="capaa1"><div class="label"onclick="selectTrack(this)">Capa A1</div>
+</div>
+</div>
+<input type="file" id="nuevo" accept="video/*,image/*,audio/*" multiple onchange="crearMedio(event)" style="display:none">
 </body>
+<script>
+    const reloj=document.getElementById('reloj');
+    const playhead=document.getElementById('playhead');
+  
+        let isPlaying = false;
+        let currentTime = 0;
+        const PX_PER_SECOND = 10;
+        const TRACK_OFFSET = 85;
+
+        for (let i = 0; i < 70; i++) {
+            const mark = document.createElement('div');
+            mark.className = 'linea';
+            mark.style.left = (TRACK_OFFSET + (i * PX_PER_SECOND)) + 'px';
+            if (i % 5 === 0) mark.innerText = i + 's';
+            document.getElementById('regla').appendChild(mark);
+        }
+        
+
+
+function updateLoop() {
+            if (!isPlaying) return;
+            currentTime += 0.016;
+playhead.style.left = (TRACK_OFFSET + 
+(currentTime * PX_PER_SECOND)) + 'px';
+reloj.innerText = formatTime(currentTime);
+//draw();
+requestAnimationFrame(updateLoop);
+        }
+        
+
+function formatTime(s) {
+            const mins = Math.floor(s / 60);
+            const secs = Math.floor(s % 60);
+            const ms = Math.floor((s % 1) * 100);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+        }
+        
+        //‐-------------
+        
+    const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const vids = { };
+        const obj = {  };
+        
+        let selectedKey = 'v1';
+        let interactionMode = 'move'; 
+        let isDragging = false;
+        let audioCtx, dest;
+        let sources = {}; 
+        let count=0;
+        let multiple=true;
+
+    
+function crearMedio(event) {
+    const files = event.target.files;
+    if (!files.length) return;
+    Array.from(files).forEach(file => {
+        const url = URL.createObjectURL(file);
+        const id = "item_" + (count++);
+        const type = file.type.split('/')[0];
+        const nombre = file.name;
+
+        // Función interna para calcular dimensiones ajustadas
+        const getFitSize = (origW, origH) => {
+            const maxWidth = canvas.width * 0.8; // 80% del canvas
+            const maxHeight = canvas.height * 0.8;
+            let ratio = Math.min(maxWidth / origW, maxHeight / origH);
+            
+            if (ratio > 1) ratio = 1; 
+            
+            return {
+                w: origW * ratio,
+                h: origH * ratio
+            };
+        };
+if (type === 'video') {
+    const video = document.createElement('video');
+    video.src = url;
+    video.onloadedmetadata = () => {
+        const size = getFitSize(video.videoWidth, video.videoHeight);
+        
+        // 1. Primero definimos los datos básicos
+        obj[id] = { 
+            x: (canvas.width - size.w) / 2,
+            y: (canvas.height - size.h) / 2,
+            w: size.w, h: size.h, esc: 1,
+            rot: 0, alpha: 1, vol: 1, 
+            loaded: true, type: 'vid', name: nombre, 
+            ini: 0, // Definimos ini aquí
+            duration: video.duration
+        };
+
+        vids[id] = video;
+
+        // 2. Usamos los datos del objeto para llamar a la función
+        // Cambiamos 'ini' por obj[id].ini y pasamos obj[id] como 'medio'
+        crearClip(id, nombre, type, obj[id].ini, obj[id].duration, obj[id]);
+    };
+} 
+else if (type === 'image') {
+    const img = new Image();
+    img.src = url;
+    img.onload = () => {
+        const size = getFitSize(img.naturalWidth, img.naturalHeight);
+        obj[id] = { 
+            x: (canvas.width - size.w) / 2,
+            y: (canvas.height - size.h) / 2,
+            w: size.w, h: size.h, esc: 1,
+            rot: 0, alpha: 1, vol: 1, 
+            loaded: true, type: 'img', name: nombre, 
+            ini: 0, 
+            duration: 10
+        };
+        vids[id] = img;
+        crearClip(id, nombre, type, obj[id].ini, 10, obj[id]);
+    };
+} 
+else if (type === 'audio') {
+    const audio = new Audio();
+    audio.src = url;
+    audio.onloadedmetadata = () => {
+        obj[id] = { 
+            x: 20, y: 20, w: 50, h: 50, esc: 1, 
+            rot: 0, alpha: 1, vol: 1, 
+            loaded: true, type: 'aud', name: nombre, 
+            ini: 0, 
+            duration: audio.duration
+        };
+        vids[id] = audio;
+        crearClip(id, nombre, type, obj[id].ini, audio.duration, obj[id]);
+    };
+}
+
+    });
+    event.target.value = ""; 
+}
+function crearClip(id, nombre, tipo, inicio, duracion, medio) {
+    const trackId = tipo === 'video' ? 'capav1' : (tipo === 'image' ? 'capai1' : 'capaa1');
+    const track = document.getElementById(trackId);
+    if (!track) return;
+
+    const div = document.createElement('div');
+    div.className = `clip`;
+    
+    // Guardar datos en el elemento
+    div.id = id;
+    div.dataset.nom = nombre;
+    div.dataset.ini = inicio;
+    div.dataset.dur = duracion;
+    div.dataset.duractual = duracion;
+    div.dataset.med = medio;
+
+    // Cálculo de posición
+    let offsetIzquierda = 0;
+    const clipsEnCapa = track.querySelectorAll('.clip');
+    clipsEnCapa.forEach(c => {
+        offsetIzquierda += parseFloat(c.style.width) || 0;
+    });
+    
+div.ini=offsetIzquierda;
+    // Estilos de dimensiones
+    div.style.width = (duracion * PX_PER_SECOND) + 'px';
+    div.style.left = (TRACK_OFFSET + offsetIzquierda) + 'px'; 
+
+
+    div.innerHTML = `
+        <div class="clip-content" style="display: flex; flex-direction: column; pointer-events: none; font-size: 8px; overflow: hidden;">
+            <span class="clip-id"><b>ID:</b> ${id}</span>
+            <span class="clip-nombre"><b>Nom:</b> ${nombre}</span>
+            <span class="clip-inicio"><b>Ini:</b> ${div.ini}s</span>
+            <span class="clip-duracion"><b>Dur:</b> ${duracion.toFixed(2)}s</span>
+        </div>
+        <div class="resizer"></div>
+    `;
+    
+    
+
+    enableDragAndResize(div, id); 
+        if(obj[id]) obj[id].domElement = div; 
+
+    if(track.children.length>1 &&multiple==true){
+        div.style.left = (TRACK_OFFSET) + 'px'; 
+        const clon = track.cloneNode(true);
+        clon.children[1].remove();
+        clon.id=track.id+"2";
+        clon.children[0].textContent=div.id;
+        track.before(clon);
+        clon.appendChild(div);
+
+    }
+    else{
+    track.appendChild(div);}
+    
+}
+function enableDragAndResize(div, id) {
+    let isDraggingClip = false;
+    let isResizing = false;
+    let startX, initLeft, initWidth;
+    
+    // Guardamos el límite máximo basado en la duración original del objeto
+    const maxDuration = obj[id].duration; 
+    const maxWidthPx = maxDuration * PX_PER_SECOND;
+
+    // Función interna para actualizar el texto del clip y el objeto de datos
+    const actualizarDatosUI = () => {
+        const currentLeft = parseFloat(div.style.left) - TRACK_OFFSET;
+        const currentWidth = parseFloat(div.style.width);
+
+        // Calcular nuevos valores
+        const nuevoIni = Math.max(0, currentLeft / PX_PER_SECOND);
+        const nuevaDur = currentWidth / PX_PER_SECOND;
+
+        // Actualizar el objeto lógico
+        obj[id].ini = nuevoIni;
+        obj[id].duration = nuevaDur;
+
+        // Actualizar el texto en el DOM (los span que creamos en crearClip)
+        const spans = div.querySelectorAll('.clip-content span');
+        if (spans.length >= 4) {
+            spans[2].innerHTML = `<b>Ini:</b> ${nuevoIni.toFixed(2)}s`;
+            spans[3].innerHTML = `<b>Dur:</b> ${nuevaDur.toFixed(2)}s`;
+        }
+        
+        // También actualizamos los datasets por si los usas luego
+        div.dataset.ini = nuevoIni;
+        div.dataset.dur = nuevaDur;
+    };
+
+    div.ontouchstart = (e) => {
+        
+        console.log("Clip seleccionado:", id);
+    
+        e.preventDefault();
+        // No prevenimos default aquí para permitir clics, 
+        // pero sí detectamos si es el resizer
+        if (typeof selectObj === 'function') selectObj(id);
+        
+        startX = e.touches[0].clientX;
+        
+        if (e.target.className === 'resizer') {
+            isResizing = true;
+            initWidth = parseFloat(div.style.width);
+            e.stopPropagation(); // Evita que el drag se active al mismo tiempo
+        } else {
+            isDraggingClip = true;
+            initLeft = parseFloat(div.style.left);
+        }
+    };
+
+    window.addEventListener('touchmove', (e) => {
+        if (!isDraggingClip && !isResizing) return;
+        
+        const dx = e.touches[0].clientX - startX;
+
+        if (isDraggingClip) {
+            const nuevoLeft = Math.max(TRACK_OFFSET, initLeft + dx);
+            div.style.left = nuevoLeft + 'px';
+            actualizarDatosUI();
+        }
+
+        if (isResizing) {
+            // Lógica: No bajar de 10px y no exceder el maxWidthPx (ancho original)
+            let nuevoAncho = initWidth + dx;
+            if (nuevoAncho < 10) nuevoAncho = 10;
+            if (nuevoAncho > maxWidthPx) nuevoAncho = maxWidthPx;
+            
+            div.style.width = nuevoAncho + 'px';
+            actualizarDatosUI();
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchend', () => { 
+        isDraggingClip = isResizing = false; 
+    });
+}
+
+
+
+
+
+function setMode(mode) {
+            interactionMode = mode;
+           // document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
+            //document.getElementById(mode === 'move' ? 'btnMover' : 'btnEscalar').classList.add('active');
+        }
+setMode('move');
+draw();
+
+let offset = { x: 0, y: 0 };
+let initialDist = 0;
+let initialAngle = 0;
+let initialScale = { w: 0, h: 0 };
+let initialRotation = 0;
+
+canvas.addEventListener('pointerdown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const keys = Object.keys(obj).reverse();
+    for (let key of keys) {
+        const o = obj[key];
+        // Detección simple (puedes mejorarla para objetos rotados después)
+        if (mouseX >= o.x && mouseX <= o.x + o.w && mouseY >= o.y && mouseY <= o.y + o.h) {
+            selectObj(key);
+            isDragging = true;
+
+            // Guardamos el punto exacto donde tocamos para evitar saltos
+            offset.x = mouseX - o.x;
+            offset.y = mouseY - o.y;
+
+            // Datos para escalar/rotar (distancia y ángulo desde el centro)
+            const centerX = o.x + o.w / 2;
+            const centerY = o.y + o.h / 2;
+            initialDist = Math.hypot(mouseX - centerX, mouseY - centerY);
+            initialAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
+            initialScale = { w: o.w, h: o.h };
+            initialRotation = o.rotation || 0;
+            break;
+        }
+    }
+});
+
+canvas.addEventListener('pointermove', (e) => {
+    if (!isDragging || !selectedKey) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const o = obj[selectedKey];
+
+    if (interactionMode === 'move') {
+        o.x = mouseX - offset.x;
+        o.y = mouseY - offset.y;
+    } 
+    else if (interactionMode === 'scale') {
+        const centerX = o.x + o.w / 2;
+        const centerY = o.y + o.h / 2;
+        const currentDist = Math.hypot(mouseX - centerX, mouseY - centerY);
+        const ratio = currentDist / initialDist;
+        
+        o.w = Math.max(20, initialScale.w * ratio);
+        o.h = Math.max(20, initialScale.h * ratio);
+    } 
+    else if (interactionMode === 'rotate') {
+        const centerX = o.x + o.w / 2;
+        const centerY = o.y + o.h / 2;
+       
+        // 1. Calcular el ángulo actual en radianes
+        const currentAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
+        let rawRotation = initialRotation + (currentAngle - initialAngle);
+
+        // 2. Convertir a grados para facilitar el "Snap"
+        let degrees = rawRotation * (180 / Math.PI);
+
+        // 3. Lógica de ajuste a 45 grados
+        const snapAngle = 45;
+        const threshold = 5; // Margen de error (grados) para activar el ajuste
+        
+        
+        // 4. Volver a convertir a radianes para guardar
+        o.rotation = rawRotation;
+    }
+});
+
+
+canvas.addEventListener('pointerup', () => { isDragging = false; });
+
+
+
+        function playsel() { if(vids[selectedKey]?.play) vids[selectedKey].play(); }
+        function pausesel() { if(vids[selectedKey]?.pause) vids[selectedKey].pause(); }
+        function stopsel() { if(vids[selectedKey]) { vids[selectedKey].pause(); vids[selectedKey].currentTime = 0; } }
+
+function selectObjx(key) {
+    selectedKey = key;
+    document.getElementById('estado').innerText = "Editando: " + key.toUpperCase();
+    
+    // 1. Quitar el resaltado de TODOS los clips del timeline
+    document.querySelectorAll('.clip').forEach(c => c.classList.remove('selected-clip'));
+
+    // 2. Si el objeto tiene un clip vinculado en el timeline, resaltarlo
+    if (obj[key]||obj[key].domElement) {
+        obj[key].domElement.classList.add('selected-clip');
+        
+        // Opcional: Hacer scroll automático hacia el clip si está fuera de vista
+     //   obj[key].domElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+
+    // Sincronizar slider de volumen
+    if(obj[key].vol !== undefined) {
+         document.getElementById('volRange').value = obj[key].vol * 100;
+    }
+}
+
+function selectObj(key) {
+    selectedKey = key;
+    const o = obj[key]; // Obtenemos el objeto seleccionado
+    document.getElementById('estado').innerText = "Editando: " + key.toUpperCase();
+    
+    // Resaltar clip en timeline
+    document.querySelectorAll('.clip').forEach(c => c.classList.remove('selected-clip'));
+    if (o.domElement) {
+        o.domElement.classList.add('selected-clip');
+    }
+
+ const inputs = document.querySelectorAll('menu input[type="range"]');
+    const rotDeg = (o.rotation || 0) * (180 / Math.PI);
+    inputs[0].value = rotDeg; 
+    inputs[1].value = (o.alpha || 1) * 100;
+    inputs[2].value = (o.vol || 1) * 100;
+}
+
+
+function updateProp(prop, val) {
+    if (!selectedKey || !obj[selectedKey]) return;
+    const o = obj[selectedKey];
+    const medioReal = vids[selectedKey]; // El elemento <video> o <audio>
+
+    if (prop === 'rot') {
+        o.rotation = parseFloat(val) * (Math.PI / 180);
+    } 
+    else if (prop === 'alpha') {
+        o.alpha = parseFloat(val);
+    }
+    else if (prop === 'vol') {
+        const volumenNormalizado = parseFloat(val);
+        o.vol = parseFloat(val);
+
+        if (medioReal && (o.type === 'vid' || o.type === 'aud')) {
+            medioReal.volume = volumenNormalizado;
+        }
+    }
+}
+
+let collisionInterval = null;
+
+function checkCollisions() {
+    // Calculamos el tiempo actual basado en la posición real del playhead en píxeles
+    const playheadPos = parseFloat(playhead.style.left) - TRACK_OFFSET;
+    const playheadTime = playheadPos / PX_PER_SECOND;
+
+    for (let id in obj) {
+        const o = obj[id];
+        const clip = o.domElement;
+        if (!clip) continue;
+
+        // Calcular los límites del clip en segundos
+        const start = o.ini;
+        const end = o.ini + o.duration;
+
+        // Detectar si el playhead está dentro del rango del clip
+        if (playheadTime >= start && playheadTime <= end) {
+            // COLISIÓN ACTIVA
+            o.visible = true; // Propiedad para el draw()
+
+            // Si es video o audio y no está reproduciéndose, play
+            if ((o.type === 'vid' || o.type === 'aud') && vids[id].paused && isPlaying) {
+                // Sincronizar el tiempo del medio con el tiempo del timeline
+                const offsetTime = playheadTime - start;
+                vids[id].currentTime = offsetTime;
+                vids[id].play().catch(e => console.log("Esperando interacción..."));
+            }
+        } else {
+            // SIN COLISIÓN
+            o.visible = false;
+            
+            // Si es video o audio, parar
+            if (o.type === 'vid' || o.type === 'aud') {
+                vids[id].pause();
+            }
+        }
+    }
+}
+
+// Iniciar el detector cada 200ms
+collisionInterval = setInterval(checkCollisions, 200);
+
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let id in obj) {
+        const o = obj[id];
+        
+        if (!o.visible) continue; 
+        let medio = vids[id];
+        ctx.save();
+        ctx.globalAlpha = o.alpha !== undefined ? o.alpha : 1;
+        ctx.translate(o.x + o.w / 2, o.y + o.h / 2);
+        ctx.rotate(o.rotation || 0);
+       
+        if (o.type !== 'aud') {
+            ctx.drawImage(medio, -o.w/2, -o.h/2, o.w, o.h);
+            if (id === selectedKey) {
+                ctx.strokeStyle = 'yellow';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(-o.w / 2 - 5, -o.h / 2 - 5, o.w + 10, o.h + 10);
+            }
+        }  
+        ctx.restore();
+    }
+    requestAnimationFrame(draw);
+}
+
+
+
+function stop() {
+    let playBtn = document.getElementById('playbtn');
+    playBtn.style.background = '#333';
+    playBtn.innerText = "PLAY";
+    currentTime = 0;
+    isPlaying = false;
+    playhead.style.left = '85px';
+    reloj.innerText = formatTime(0);
+
+    // Pausar todos los videos y limpiar canvas
+   for (let id in vids) {
+if (obj[id].type==='vid'||obj[id].type ==='aud') {
+            vids[id].pause();
+            vids[id].currentTime = 0;
+        }
+    }
+}
+
+function play(e){
+        if(!isPlaying)
+        {isPlaying = true; updateLoop();e.innerText='PAUSE';
+            e.style.background='#e36'
+        }
+        else{isPlaying = false;e.innerText='play';e.style.background='#333';}
+        for (let id in vids) {
+if (obj[id].type==='vid'||obj[id].type ==='aud') {
+            vids[id].pause();
+        }
+
+}
+}
+function seekx(e) {
+            const rect = regla.getBoundingClientRect();
+            const x = e.clientX - rect.left + regla.scrollLeft;
+            let newTime = (x - TRACK_OFFSET) / PX_PER_SECOND;
+            if (newTime < 0) newTime = 0;
+            currentTime = newTime;
+           checkCollisions();
+           draw();
+
+   playhead.style.left = (TRACK_OFFSET + 
+(currentTime * PX_PER_SECOND)) + 'px';
+reloj.innerText = formatTime(currentTime);         
+        }
+        
+
+        regla.onmousedown = (e) => { isSeeking = true; seek(e); };
+        
+        
+function seek(e) {
+    const rect = regla.getBoundingClientRect();
+    const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+    
+    const x = clientX - rect.left;
+    let newTime = (x - TRACK_OFFSET) / PX_PER_SECOND;
+    
+    if (newTime < 0) newTime = 0;
+    currentTime = newTime;
+
+    playhead.style.left = (TRACK_OFFSET + (currentTime * PX_PER_SECOND)) + 'px';
+    reloj.innerText = formatTime(currentTime);
+
+    // 2. Sincronizar el currentTime de los medios que colisionan
+    for (let id in obj) {
+        const o = obj[id];
+        const medio = vids[id];
+        
+        // Calculamos los límites del clip
+        const start = o.ini;
+        const end = o.ini + o.duration;
+
+        if (currentTime >= start && currentTime <= end) {
+            o.visible = true; // Aseguramos que sea visible en el canvas
+            
+            if (o.type === 'vid' || o.type === 'aud') {
+                // El tiempo local del video es: Tiempo Global - Inicio del Clip
+                const localTime = currentTime - start;
+                
+                // Evitamos saltos innecesarios si la diferencia es mínima
+                if (Math.abs(medio.currentTime - localTime) > 0.1) {
+                    medio.currentTime = localTime;
+                }
+            }
+        } else {
+            o.visible = false;
+            // Opcional: pausar si sale del rango durante el seek
+            if (o.type === 'vid' || o.type === 'aud') {
+                medio.pause();
+            }
+        }
+    }
+
+    // 3. Renderizar el frame actual del canvas
+    // (Nota: draw() debe estar fuera de un requestAnimationFrame para ser instantáneo aquí)
+    //checkCollisions(); 
+}
+function selectTrack(e) {
+document.querySelectorAll('.selected').forEach(t => t.classList.remove('selected'));
+e.classList.add('selected');
+e.parentElement.classList.add('selected');
+}
+function full() {
+if (!document.fullscreenElement) {
+document.documentElement.requestFullscreen();
+pantallaCompleta = true;
+} else {
+document.exitFullscreen();
+pantallaCompleta = false;
+}
+}
+</script>
 </html>
