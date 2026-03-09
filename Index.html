@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor Dash & PWA</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #00ff00; padding: 20px; }
+        .sensor-card { border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
+        .value { color: #fff; font-family: monospace; font-size: 1.2em; }
+        #installBtn { 
+            display: none; width: 100%; padding: 15px; background: #00ff00; 
+            color: #000; border: none; font-weight: bold; border-radius: 8px; margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="installBtn">INSTALAR APP (PWA)</button>
+
+    <h2>Monitor de Sensores</h2>
+
+    <div class="sensor-card">
+        <h3>Acelerómetro</h3>
+        <p>X: <span id="acc-x" class="value">0</span></p>
+        <p>Y: <span id="acc-y" class="value">0</span></p>
+        <p>Z: <span id="acc-z" class="value">0</span></p>
+    </div>
+
+    <div class="sensor-card">
+        <h3>Giroscopio (Orientación)</h3>
+        <p>Alpha (Z): <span id="gyro-a" class="value">0</span></p>
+        <p>Beta (X): <span id="gyro-b" class="value">0</span></p>
+        <p>Gamma (Y): <span id="gyro-g" class="value">0</span></p>
+    </div>
+
+    <div class="sensor-card">
+        <h3>Luz Ambiental</h3>
+        <p>Lux: <span id="light-val" class="value">N/A</span></p>
+    </div>
+
+    <script>
+        // 1. LÓGICA DE SENSORES
+        if ('Accelerometer' in window) {
+            try {
+                const acc = new Accelerometer({frequency: 60});
+                acc.addEventListener('reading', () => {
+                    document.getElementById('acc-x').innerText = acc.x.toFixed(2);
+                    document.getElementById('acc-y').innerText = acc.y.toFixed(2);
+                    document.getElementById('acc-z').innerText = acc.z.toFixed(2);
+                });
+                acc.start();
+            } catch (err) { console.log("Acelerómetro no disponible"); }
+        }
+
+        window.addEventListener('deviceorientation', (event) => {
+            document.getElementById('gyro-a').innerText = event.alpha ? event.alpha.toFixed(2) : 0;
+            document.getElementById('gyro-b').innerText = event.beta ? event.beta.toFixed(2) : 0;
+            document.getElementById('gyro-g').innerText = event.gamma ? event.gamma.toFixed(2) : 0;
+        });
+
+        if ('AmbientLightSensor' in window) {
+            const sensor = new AmbientLightSensor();
+            sensor.addEventListener('reading', () => {
+                document.getElementById('light-val').innerText = sensor.illuminance;
+            });
+            sensor.start();
+        }
+
+        // 2. LÓGICA DE INSTALACIÓN PWA
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block'; // Mostrar botón si es instalable
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') installBtn.style.display = 'none';
+                deferredPrompt = null;
+            }
+        });
+
+        // Registrar Service Worker (necesario para PWA)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+        }
+    </script>
+</body>
+</html>
