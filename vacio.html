@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Android Web App - FileSystem API</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Roboto, sans-serif; background: #121212; color: white; }
+
+        /* Contenedor Deslizable */
+        .main-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        section {
+            flex: 0 0 100vw;
+            height: 100vh;
+            scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        #sec1, #sec3 { background: #1a1a1a; justify-content: center; align-items: center; }
+        #sec2, #sec4 { background: #212121; }
+
+        .content-frame { width: 100%; height: 80%; border: 1px solid #444; background: #fff; margin-top: 10px; }
+
+        /* Estilos del Editor en Sección 4 */
+        .editor-container { display: flex; flex-direction: column; height: 100%; gap: 10px; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 5px; background: #333; padding: 10px; border-radius: 8px; }
+        
+        button {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:active { background: #007bff; }
+        .btn-primary { background: #007bff; border: none; }
+        .btn-danger { background: #dc3545; border: none; }
+
+        #noteEditor {
+            flex-grow: 1;
+            width: 100%;
+            background: #2c2c2c;
+            color: #efefef;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            font-size: 1rem;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+        }
+
+        h2 { margin-bottom: 15px; text-align: center; color: #007bff; }
+    </style>
+</head>
+<body>
+
+<div class="main-container">
+    <section id="sec1">
+        <h2>Cargar a Sección 2</h2>
+        <button onclick="document.getElementById('hiddenInput').click()">Abrir Archivo Local</button>
+        <input type="file" id="hiddenInput" accept=".html" style="display:none" onchange="loadFile(this)">
+    </section>
+
+    <section id="sec2">
+        <h2>Visor de Contenido</h2>
+        <iframe id="viewer" class="content-frame"></iframe>
+    </section>
+
+    <section id="sec3">
+        <h2>Inicio</h2>
+        <iframe src="inicio.html" class="content-frame"></iframe>
+    </section>
+
+    <section id="sec4">
+        <div class="editor-container">
+            <h2>Note Studio (FS API)</h2>
+            
+            <div class="toolbar">
+                <button class="btn-primary" onclick="newNote()">+ Nueva</button>
+                <button onclick="saveNoteFS()">💾 Guardar (API)</button>
+                <button class="btn-danger" onclick="deleteNote()">🗑 Eliminar</button>
+                <button onclick="uploadNote()">📂 Subir Archivo</button>
+                <button onclick="downloadAsWord()">📝 Exportar Word</button>
+                <button onclick="downloadAllTxt()">🗂 Bajar Todo (.txt)</button>
+            </div>
+
+            <div class="toolbar" style="background: #222;">
+                <button onclick="execCmd('selectAll')">Todo</button>
+                <button onclick="copyText()">Copiar</button>
+                <button onclick="pasteText()">Pegar</button>
+                <button onclick="execCmd('undo')">↶</button>
+                <button onclick="execCmd('redo')">↷</button>
+            </div>
+
+            <textarea id="noteEditor" placeholder="Escribe tu nota aquí..."></textarea>
+        </div>
+    </section>
+</div>
+
+<script>
+    /* LÓGICA DE NAVEGACIÓN Y CARGA (SEC 1 & 2) */
+    function loadFile(input) {
+        const file = input.files[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            document.getElementById('viewer').src = url;
+            document.querySelector('.main-container').scrollTo({ left: window.innerWidth, behavior: 'smooth' });
+        }
+    }
+
+    /* LÓGICA DEL EDITOR (SECCIÓN 4) */
+    const editor = document.getElementById('noteEditor');
+    let fileHandle; // Para guardar la referencia del archivo de la File System API
+
+    // 1. Crear Nueva Nota
+    function newNote() {
+        if (confirm("¿Crear nueva nota? Se limpiará el editor.")) {
+            editor.value = "";
+            fileHandle = null;
+        }
+    }
+
+    // 2. Guardar Nota Actual usando File System Access API
+    async function saveNoteFS() {
+        try {
+            // Si no tenemos una referencia previa, pedimos crear un archivo nuevo
+            if (!fileHandle) {
+                fileHandle = await window.showSaveFilePicker({
+                    suggestedName: 'mi_nota.txt',
+                    types: [{ description: 'Text File', accept: {'text/plain': ['.txt']} }]
+                });
+            }
+            
+            const writable = await fileHandle.createWritable();
+            await writable.write(editor.value);
+            await writable.close();
+            alert("¡Archivo guardado con éxito mediante FS API!");
+        } catch (err) {
+            console.error(err);
+            // Fallback para navegadores que no soportan showSaveFilePicker
+            saveFallback(editor.value, "nota.txt");
+        }
+    }
+
+    // 3. Eliminar Nota (Localmente)
+    function deleteNote() {
+        editor.value = "";
+        fileHandle = null;
+    }
+
+    // 4. Subir Archivo (Leer con FS API o Fallback)
+    async function uploadNote() {
+        try {
+            [fileHandle] = await window.showOpenFilePicker({
+                types: [{ description: 'Text Files', accept: {'text/plain': ['.txt']} }]
+            });
+            const file = await fileHandle.getFile();
+            editor.value = await file.text();
+        } catch (err) {
+            // Fallback clásico
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = f => editor.value = f.target.result;
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+    }
+
+    // 5. Descargar como Word (Simulado mediante Blob HTML)
+    function downloadAsWord() {
+        const content = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head><meta charset='utf-8'></head><body>${editor.value.replace(/\n/g, '<br>')}</body></html>`;
+        const blob = new Blob([content], { type: 'application/msword' });
+        saveFallback(blob, "nota.doc");
+    }
+
+    // 6. Descargar todas las notas (Exportar el contenido actual como TXT masivo)
+    function downloadAllTxt() {
+        const blob = new Blob([editor.value], { type: 'text/plain' });
+        saveFallback(blob, "backup_notas.txt");
+    }
+
+    /* FUNCIONES DE EDICIÓN */
+    function execCmd(cmd) {
+        if (cmd === 'undo') document.execCommand('undo');
+        if (cmd === 'redo') document.execCommand('redo');
+        if (cmd === 'selectAll') {
+            editor.focus();
+            editor.select();
+        }
+    }
+
+    async function copyText() {
+        editor.select();
+        await navigator.clipboard.writeText(editor.value);
+    }
+
+    async function pasteText() {
+        editor.focus();
+        const text = await navigator.clipboard.readText();
+        const start = editor.selectionStart;
+        editor.value = editor.value.substring(0, start) + text + editor.value.substring(editor.selectionEnd);
+    }
+
+    // Función auxiliar para descargas tradicionales (Fallback)
+    function saveFallback(data, name) {
+        const blob = (data instanceof Blob) ? data : new Blob([data], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>

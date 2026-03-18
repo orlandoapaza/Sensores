@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Video & Voice Transcriber</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --accent-video: #00ff88;
+            --accent-voice: #ff2d55;
+            --panel: #161616;
+            --text: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Pantalla Principal */
+        #main-display {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            position: relative;
+        }
+
+        video {
+            max-width: 100%;
+            max-height: 50%;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* Área de Texto Dinámico */
+        #transcript-box {
+            width: 90%;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #word-highlight {
+            font-size: 1.8rem;
+            font-weight: 800;
+            min-height: 2.2rem;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .video-mode { color: var(--accent-video); text-shadow: 0 0 15px rgba(0,255,136,0.4); }
+        .voice-mode { color: var(--accent-voice); text-shadow: 0 0 15px rgba(255,45,85,0.4); }
+
+        #history {
+            font-size: 0.9rem;
+            color: #777;
+            height: 50px;
+            overflow-y: auto;
+            border-left: 2px solid #333;
+            padding-left: 10px;
+        }
+
+        /* Controles */
+        #controls {
+            background: var(--panel);
+            padding: 15px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            border-radius: 20px 20px 0 0;
+        }
+
+        button {
+            border: none;
+            padding: 15px 5px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .btn-blue { background: #007aff; }
+        .btn-green { background: var(--accent-video); color: #000; }
+        .btn-red { background: var(--accent-voice); }
+        .btn-dark { background: #333; }
+
+        button:active { opacity: 0.7; transform: scale(0.95); }
+
+        /* Barra de Estado */
+        #status-bar {
+            background: #000;
+            padding: 10px 20px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            color: #555;
+        }
+
+        .recording { color: #ff2d55; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 50% { opacity: 0.3; } }
+
+        #file-input { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="main-display">
+        <video id="v-player" playsinline></video>
+        
+        <div id="transcript-box">
+            <div id="word-highlight" class="video-mode">Esperando...</div>
+            <div id="history">Carga un video o pulsa el micro para empezar.</div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button class="btn-blue" onclick="document.getElementById('file-input').click()">📁 Cargar Video</button>
+        <button class="btn-dark" id="btn-play">⏯️ Play / Pause</button>
+        
+        <button class="btn-green" id="btn-trans-video">🎬 Transcribir Video</button>
+        <button class="btn-red" id="id-btn-mic">🎙️ Hablar al Micro</button>
+    </div>
+
+    <div id="status-bar">
+        <span id="st-msg">Estado: Listo</span>
+        <span id="st-rec">🔴 REC OFF</span>
+    </div>
+
+    <input type="file" id="file-input" accept="video/*">
+
+    <script>
+        const video = document.getElementById('v-player');
+        const fileInput = document.getElementById('file-input');
+        const btnPlay = document.getElementById('btn-play');
+        const btnTransVideo = document.getElementById('btn-trans-video');
+        const btnMic = document.getElementById('id-btn-mic');
+        
+        const display = document.getElementById('word-highlight');
+        const history = document.getElementById('history');
+        const stMsg = document.getElementById('st-msg');
+        const stRec = document.getElementById('st-rec');
+
+        // Configuración de Reconocimiento
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let mode = 'none'; // 'video' o 'voice'
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'es-ES';
+
+            recognition.onresult = (event) => {
+                let interim = '';
+                let final = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final += event.results[i][0].transcript;
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+
+                if (interim) {
+                    const words = interim.split(' ');
+                    display.innerText = words[words.length - 1];
+                }
+
+                if (final) {
+                    history.innerHTML = `<strong>Reciente:</strong> ${final}<br>` + history.innerHTML;
+                }
+            };
+
+            recognition.onerror = (e) => {
+                if (e.error === 'not-allowed') {
+                    stMsg.innerHTML = "⚠️ ERROR: Permiso denegado. Usa HTTPS.";
+                } else {
+                    stMsg.innerText = "Error: " + e.error;
+                }
+                stopAll();
+            };
+        }
+
+        // --- FUNCIONES ---
+
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                video.src = URL.createObjectURL(file);
+                stMsg.innerText = "Video cargado.";
+            }
+        };
+
+        btnPlay.onclick = () => {
+            if (video.paused) { video.play(); btnPlay.innerText = "⏸️ Pause"; }
+            else { video.pause(); btnPlay.innerText = "⏯️ Play"; }
+        };
+
+        // Transcribir lo que dice el video (usa el altavoz/micro)
+        btnTransVideo.onclick = () => {
+            if (mode === 'video') { stopAll(); return; }
+            stopAll();
+            mode = 'video';
+            display.className = 'video-mode';
+            display.innerText = "Escuchando video...";
+            startRecognition();
+            video.play();
+        };
+
+        // Transcribir lo que hablas tú
+        btnMic.onclick = () => {
+            if (mode === 'voice') { stopAll(); return; }
+            stopAll();
+            mode = 'voice';
+            display.className = 'voice-mode';
+            display.innerText = "Dime algo...";
+            startRecognition();
+        };
+
+        function startRecognition() {
+            try {
+                recognition.start();
+                stRec.innerText = "🔴 REC ON";
+                stRec.className = "recording";
+                stMsg.innerText = mode === 'voice' ? "Modo Micrófono" : "Modo Video";
+            } catch (e) { console.log(e); }
+        }
+
+        function stopAll() {
+            recognition.stop();
+            video.pause();
+            mode = 'none';
+            stRec.innerText = "🔴 REC OFF";
+            stRec.className = "";
+            stMsg.innerText = "Listo.";
+            btnPlay.innerText = "⏯️ Play";
+        }
+
+        video.onended = () => { if (mode === 'video') stopAll(); };
+
+    </script>
+</body>
+</html>
