@@ -72,6 +72,8 @@
 
 <div class="main-container">
     <section id="sec1">
+        <button id="install">instalar</button>
+                
         <h2>Cargar a Sección 2</h2>
         <button onclick="document.getElementById('hiddenInput').click()">Abrir Archivo Local</button>
         <input type="file" id="hiddenInput" accept=".html" style="display:none" onchange="loadFile(this)">
@@ -114,6 +116,30 @@
 </div>
 
 <script>
+    // 2. LÓGICA DE INSTALACIÓN PWA
+        let deferredPrompt;
+        const installBtn = document.getElementById('install');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block'; // Mostrar botón si es instalable
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') installBtn.style.display = 'none';
+                deferredPrompt = null;
+            }
+        });
+
+        // Registrar Service Worker (necesario para PWA)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+        }
+    
     /* LÓGICA DE NAVEGACIÓN Y CARGA (SEC 1 & 2) */
     function loadFile(input) {
         const file = input.files[0];
