@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grabador Dual Android</title>
+    <style>
+        :root {
+            --primary: #6200ee;
+            --secondary: #03dac6;
+            --danger: #b00020;
+            --bg: #121212;
+        }
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            background-color: var(--bg); 
+            color: white;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px;
+            margin: 0;
+        }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
+        
+        video { 
+            width: 100%; 
+            border-radius: 12px; 
+            background: #222; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+        }
+
+        button { 
+            padding: 16px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: 600; 
+            text-transform: uppercase;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-cam { background-color: var(--primary); color: white; }
+        .btn-scr { background-color: var(--secondary); color: #000; }
+        .btn-dl { 
+            background-color: #ffffff; 
+            color: #000; 
+            margin-top: 20px;
+            border: 2px solid #fff;
+        }
+
+        button:active { transform: scale(0.98); opacity: 0.8; }
+        button:disabled { background-color: #444; color: #888; cursor: not-allowed; transform: none; }
+        
+        .status { font-size: 12px; color: #aaa; text-align: center; margin-top: -10px; }
+        hr { width: 100%; border: 0; border-top: 1px solid #333; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Grabador Multimedia</h2>
+
+        <video id="vCam" autoplay muted playsinline></video>
+        <button id="bCam" class="btn-cam">Iniciar Cámara</button>
+        <div id="sCam" class="status">Listo para grabar</div>
+
+        <hr>
+
+        <video id="vScr" autoplay muted playsinline></video>
+        <button id="bScr" class="btn-scr">Compartir Pantalla</button>
+        <div id="sScr" class="status">Listo para capturar</div>
+
+        <button id="bDl" class="btn-dl" disabled>Descargar ambos (MP4)</button>
+    </div>
+
+    <script>
+        const states = { cam: { rec: null, chunks: [] }, scr: { rec: null, chunks: [] } };
+
+        async function toggleRecording(type, btnId, statusId, videoId, getStreamFunc) {
+            const btn = document.getElementById(btnId);
+            const status = document.getElementById(statusId);
+            const video = document.getElementById(videoId);
+
+            if (!states[type].rec) {
+                try {
+                    const stream = await getStreamFunc();
+                    video.srcObject = stream;
+                    
+                    const recorder = new MediaRecorder(stream);
+                    states[type].chunks = [];
+                    
+                    recorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) states[type].chunks.push(e.data);
+                    };
+
+                    recorder.onstop = () => {
+                        // Al detener, mostramos el video grabado en lugar del stream en vivo
+                        const blob = new Blob(states[type].chunks, { type: 'video/mp4' });
+                        video.srcObject = null;
+                        video.src = URL.createObjectURL(blob);
+                        video.controls = true;
+                        checkReady();
+                    };
+
+                    recorder.start();
+                    states[type].rec = recorder;
+                    btn.innerText = "Detener Grabación";
+                    status.innerText = "🔴 Grabando...";
+                } catch (err) {
+                    console.error(err);
+                    alert("Error al acceder al medio: " + err.message);
+                }
+            } else {
+                states[type].rec.stop();
+                states[type].rec.stream.getTracks().forEach(track => track.stop());
+                btn.disabled = true;
+                btn.innerText = "Grabación Finalizada";
+                status.innerText = "✅ Lista para descargar";
+            }
+        }
+
+        // Evento Cámara
+        document.getElementById('bCam').onclick = () => {
+            toggleRecording('cam', 'bCam', 'sCam', 'vCam', () => 
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true })
+            );
+        };
+
+        // Evento Pantalla
+        document.getElementById('bScr').onclick = () => {
+            toggleRecording('scr', 'bScr', 'sScr', 'vScr', () => 
+                navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+            );
+        };
+
+        function checkReady() {
+            if (states.cam.chunks.length > 0 && states.scr.chunks.length > 0) {
+                document.getElementById('bDl').disabled = false;
+            }
+        }
+
+        // Descarga múltiple
+        document.getElementById('bDl').onclick = () => {
+            ['cam', 'scr'].forEach(type => {
+                const blob = new Blob(states[type].chunks, { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `grabacion_${type}_${new Date().getTime()}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
+            });
+        };
+    </script>
+</body>
+</html>
