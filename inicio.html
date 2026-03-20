@@ -2,253 +2,164 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Video & Voice Transcriber</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grabador Dual Android</title>
     <style>
         :root {
-            --bg: #0a0a0a;
-            --accent-video: #00ff88;
-            --accent-voice: #ff2d55;
-            --panel: #161616;
-            --text: #ffffff;
+            --primary: #6200ee;
+            --secondary: #03dac6;
+            --danger: #b00020;
+            --bg: #121212;
         }
-
-        body {
-            margin: 0;
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Segoe UI', sans-serif;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-
-        /* Pantalla Principal */
-        #main-display {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 10px;
-            position: relative;
-        }
-
-        video {
-            max-width: 100%;
-            max-height: 50%;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-
-        /* Área de Texto Dinámico */
-        #transcript-box {
-            width: 90%;
-            margin-top: 20px;
-            text-align: center;
-        }
-
-        #word-highlight {
-            font-size: 1.8rem;
-            font-weight: 800;
-            min-height: 2.2rem;
-            margin-bottom: 10px;
-            transition: all 0.2s;
-        }
-
-        .video-mode { color: var(--accent-video); text-shadow: 0 0 15px rgba(0,255,136,0.4); }
-        .voice-mode { color: var(--accent-voice); text-shadow: 0 0 15px rgba(255,45,85,0.4); }
-
-        #history {
-            font-size: 0.9rem;
-            color: #777;
-            height: 50px;
-            overflow-y: auto;
-            border-left: 2px solid #333;
-            padding-left: 10px;
-        }
-
-        /* Controles */
-        #controls {
-            background: var(--panel);
-            padding: 15px;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            border-radius: 20px 20px 0 0;
-        }
-
-        button {
-            border: none;
-            padding: 15px 5px;
-            border-radius: 10px;
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            background-color: var(--bg); 
             color: white;
-            font-weight: bold;
-            font-size: 0.8rem;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px;
+            margin: 0;
+        }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 15px; }
+        
+        video { 
+            width: 100%; 
+            border-radius: 12px; 
+            background: #222; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+        }
+
+        button { 
+            padding: 16px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: 600; 
             text-transform: uppercase;
+            transition: 0.3s;
+            cursor: pointer;
         }
 
-        .btn-blue { background: #007aff; }
-        .btn-green { background: var(--accent-video); color: #000; }
-        .btn-red { background: var(--accent-voice); }
-        .btn-dark { background: #333; }
-
-        button:active { opacity: 0.7; transform: scale(0.95); }
-
-        /* Barra de Estado */
-        #status-bar {
-            background: #000;
-            padding: 10px 20px;
-            font-size: 11px;
-            display: flex;
-            justify-content: space-between;
-            color: #555;
+        .btn-cam { background-color: var(--primary); color: white; }
+        .btn-scr { background-color: var(--secondary); color: #000; }
+        .btn-dl { 
+            background-color: #ffffff; 
+            color: #000; 
+            margin-top: 20px;
+            border: 2px solid #fff;
         }
 
-        .recording { color: #ff2d55; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 50% { opacity: 0.3; } }
-
-        #file-input { display: none; }
+        button:active { transform: scale(0.98); opacity: 0.8; }
+        button:disabled { background-color: #444; color: #888; cursor: not-allowed; transform: none; }
+        
+        .status { font-size: 12px; color: #aaa; text-align: center; margin-top: -10px; }
+        hr { width: 100%; border: 0; border-top: 1px solid #333; margin: 20px 0; }
     </style>
 </head>
 <body>
 
-    <div id="main-display">
-        <video id="v-player" playsinline></video>
-        
-        <div id="transcript-box">
-            <div id="word-highlight" class="video-mode">Esperando...</div>
-            <div id="history">Carga un video o pulsa el micro para empezar.</div>
-        </div>
-    </div>
+    <div class="container">
+        <h2>Grabador Multimedia</h2>
 
-    <div id="controls">
-        <button class="btn-blue" onclick="document.getElementById('file-input').click()">📁 Cargar Video</button>
-        <button class="btn-dark" id="btn-play">⏯️ Play / Pause</button>
-        
-        <button class="btn-green" id="btn-trans-video">🎬 Transcribir Video</button>
-        <button class="btn-red" id="id-btn-mic">🎙️ Hablar al Micro</button>
-    </div>
+        <video id="vCam" autoplay muted playsinline></video>
+        <button id="bCam" class="btn-cam">Iniciar Cámara</button>
+        <div id="sCam" class="status">Listo para grabar</div>
 
-    <div id="status-bar">
-        <span id="st-msg">Estado: Listo</span>
-        <span id="st-rec">🔴 REC OFF</span>
-    </div>
+        <hr>
 
-    <input type="file" id="file-input" accept="video/*">
+        <video id="vScr" autoplay muted playsinline></video>
+        <button id="bScr" class="btn-scr">Compartir Pantalla</button>
+        <div id="sScr" class="status">Listo para capturar</div>
+
+        <button id="bDl" class="btn-dl" disabled>Descargar ambos (MP4)</button>
+    </div>
 
     <script>
-        const video = document.getElementById('v-player');
-        const fileInput = document.getElementById('file-input');
-        const btnPlay = document.getElementById('btn-play');
-        const btnTransVideo = document.getElementById('btn-trans-video');
-        const btnMic = document.getElementById('id-btn-mic');
-        
-        const display = document.getElementById('word-highlight');
-        const history = document.getElementById('history');
-        const stMsg = document.getElementById('st-msg');
-        const stRec = document.getElementById('st-rec');
+        const states = { cam: { rec: null, chunks: [] }, scr: { rec: null, chunks: [] } };
 
-        // Configuración de Reconocimiento
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = null;
-        let mode = 'none'; // 'video' o 'voice'
+        async function toggleRecording(type, btnId, statusId, videoId, getStreamFunc) {
+            const btn = document.getElementById(btnId);
+            const status = document.getElementById(statusId);
+            const video = document.getElementById(videoId);
 
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'es-ES';
+            if (!states[type].rec) {
+                try {
+                    const stream = await getStreamFunc();
+                    video.srcObject = stream;
+                    
+                    const recorder = new MediaRecorder(stream);
+                    states[type].chunks = [];
+                    
+                    recorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) states[type].chunks.push(e.data);
+                    };
 
-            recognition.onresult = (event) => {
-                let interim = '';
-                let final = '';
+                    recorder.onstop = () => {
+                        // Al detener, mostramos el video grabado en lugar del stream en vivo
+                        const blob = new Blob(states[type].chunks, { type: 'video/mp4' });
+                        video.srcObject = null;
+                        video.src = URL.createObjectURL(blob);
+                        video.controls = true;
+                        checkReady();
+                    };
 
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        final += event.results[i][0].transcript;
-                    } else {
-                        interim += event.results[i][0].transcript;
-                    }
+                    recorder.start();
+                    states[type].rec = recorder;
+                    btn.innerText = "Detener Grabación";
+                    status.innerText = "🔴 Grabando...";
+                } catch (err) {
+                    console.error(err);
+                    alert("Error al acceder al medio: " + err.message);
                 }
-
-                if (interim) {
-                    const words = interim.split(' ');
-                    display.innerText = words[words.length - 1];
-                }
-
-                if (final) {
-                    history.innerHTML = `<strong>Reciente:</strong> ${final}<br>` + history.innerHTML;
-                }
-            };
-
-            recognition.onerror = (e) => {
-                if (e.error === 'not-allowed') {
-                    stMsg.innerHTML = "⚠️ ERROR: Permiso denegado. Usa HTTPS.";
-                } else {
-                    stMsg.innerText = "Error: " + e.error;
-                }
-                stopAll();
-            };
-        }
-
-        // --- FUNCIONES ---
-
-        fileInput.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                video.src = URL.createObjectURL(file);
-                stMsg.innerText = "Video cargado.";
+            } else {
+                states[type].rec.stop();
+                states[type].rec.stream.getTracks().forEach(track => track.stop());
+                btn.disabled = true;
+                btn.innerText = "Grabación Finalizada";
+                status.innerText = "✅ Lista para descargar";
             }
-        };
-
-        btnPlay.onclick = () => {
-            if (video.paused) { video.play(); btnPlay.innerText = "⏸️ Pause"; }
-            else { video.pause(); btnPlay.innerText = "⏯️ Play"; }
-        };
-
-        // Transcribir lo que dice el video (usa el altavoz/micro)
-        btnTransVideo.onclick = () => {
-            if (mode === 'video') { stopAll(); return; }
-            stopAll();
-            mode = 'video';
-            display.className = 'video-mode';
-            display.innerText = "Escuchando video...";
-            startRecognition();
-            video.play();
-        };
-
-        // Transcribir lo que hablas tú
-        btnMic.onclick = () => {
-            if (mode === 'voice') { stopAll(); return; }
-            stopAll();
-            mode = 'voice';
-            display.className = 'voice-mode';
-            display.innerText = "Dime algo...";
-            startRecognition();
-        };
-
-        function startRecognition() {
-            try {
-                recognition.start();
-                stRec.innerText = "🔴 REC ON";
-                stRec.className = "recording";
-                stMsg.innerText = mode === 'voice' ? "Modo Micrófono" : "Modo Video";
-            } catch (e) { console.log(e); }
         }
 
-        function stopAll() {
-            recognition.stop();
-            video.pause();
-            mode = 'none';
-            stRec.innerText = "🔴 REC OFF";
-            stRec.className = "";
-            stMsg.innerText = "Listo.";
-            btnPlay.innerText = "⏯️ Play";
+        // Evento Cámara
+        document.getElementById('bCam').onclick = () => {
+            toggleRecording('cam', 'bCam', 'sCam', 'vCam', () => 
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true })
+            );
+        };
+
+        // Evento Pantalla
+        document.getElementById('bScr').onclick = () => {
+            toggleRecording('scr', 'bScr', 'sScr', 'vScr', () => 
+                navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+            );
+        };
+
+        function checkReady() {
+            if (states.cam.chunks.length > 0 && states.scr.chunks.length > 0) {
+                document.getElementById('bDl').disabled = false;
+            }
         }
 
-        video.onended = () => { if (mode === 'video') stopAll(); };
-
+        // Descarga múltiple
+        document.getElementById('bDl').onclick = () => {
+            ['cam', 'scr'].forEach(type => {
+                const blob = new Blob(states[type].chunks, { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `grabacion_${type}_${new Date().getTime()}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
+            });
+        };
     </script>
 </body>
 </html>
